@@ -13,7 +13,26 @@ def VAD(waveform, Fs):
     segments (list of arrays) - list of the waveform segments where energy is 
        greater than 10% of maximum energy
     '''
-    raise RuntimeError("You need to change this part")
+    # raise RuntimeError("You need to change this part")
+    framelength = int(0.025*Fs)
+    frameskip = int(0.01*Fs)
+    frames = np.array([waveform[m:m+framelength]
+                        for m in range(0, len(waveform)-framelength, frameskip)])
+    if len(frames) == 0:
+        return []
+    energies = np.sum(np.square(frames), axis=1)
+    threshold = 0.1*np.amax(energies)           
+    is_speech = energies > threshold
+
+    padded = np.concatenate([[0], is_speech.astype(int), [0]])
+    diff = np.diff(padded)
+    framestarts = np.flatnonzero(diff == 1)
+    frameends = np.flatnonzero(diff == -1)
+
+    segments = [waveform[frameskip*s : frameskip*e]
+                for s, e in zip(framestarts, frameends)
+                if frameskip*(e-s) >= framelength]     
+    return segments
 
 def segments_to_models(segments, Fs):
     '''
@@ -47,6 +66,17 @@ def recognize_speech(testspeech, Fs, models, labels):
     sims (Y-by-K array) - cosine similarity of each model to each test segment
     test_outputs (list of strings) - recognized label of each test segment
     '''
-    raise RuntimeError("You need to change this part")
+    # raise RuntimeError("You need to change this part")
+    segments = VAD(testspeech, Fs)
+    test_models = segments_to_models(segments, Fs)      # 复用，不再重写一遍
+
+    M = np.array(models)                                # (Y, D)
+    T = np.array(test_models)                           # (K, D)
+    M_n = M/np.linalg.norm(M, axis=1, keepdims=True)
+    T_n = T/np.linalg.norm(T, axis=1, keepdims=True)
+    sims = M_n @ T_n.T                                  # (Y, K)
+
+    test_outputs = [labels[y] for y in np.argmax(sims, axis=0)]
+    return sims, test_outputs
 
 
